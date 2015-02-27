@@ -1,0 +1,8 @@
+#+TITLE:	Progress
+#+startup:	showeverything
+
+*** [0/2] 0.0.1 
+
+- [ ] Design of the REST API
+  An HTTP endpoint which expects Org documents
+- [ ] Implement task queue

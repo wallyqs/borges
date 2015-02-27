@@ -1,0 +1,37 @@
+#+TITLE:	Design
+#+startup:	showeverything
+
+*** Some decisions
+
+- Use the mesos go bindings
+
+- HTTP endpoint which wraps a ~OrgBabelScheduler~
+  + Payload is a raw Org mode document
+  + =#+include:= should be resolved before sending the payload
+
+- Expect fault tolerance for the job by default,
+  but also support tasks that finishes.
+  + Use ~:ensures~ option for this
+  : :ensure it-keeps-running
+  : :ensure it-finishes
+
+- Support both regular workloads and dockerized workloads
+  + Via the ~:dockerize true~  ~:image redis~ parameters
+
+- Support allocating ports for the job
+
+- Consider sending messages via NATS
+  + Example: ~:url app-a.apps.tokyo~
+    # Note: what about replacing already existing routes?
+
+*** Workflow
+
+- =POST /jobs/= 
+  + Schedules the jobs and returns a job id in response.
+
+- =GET /jobs/10=
+  + When visited like ~10.org~,
+    the document will have the results from the job
+    within the same document.
+  + When visited like ~10.html~,
+    the Org mode document will be rendered for the user.

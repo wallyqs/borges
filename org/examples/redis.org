@@ -1,0 +1,24 @@
+#+TITLE: Classic example of Running Redis
+#+borgesaddress: 127.0.0.1:8888
+
+#+name: redis-server
+#+headers: :dockerize t :image redis :expose 6379:6379 :mem 1024
+#+BEGIN_SRC sh
+redis-server
+#+END_SRC
+
+#+name: ruby-redis
+#+headers: :cpus 1 :mem 56
+#+BEGIN_SRC ruby
+requre 'redis'
+
+loop do
+  begin
+    redis = Redis.new("127.0.0.1", 6379)
+    redis.set("hello", "world!")
+    redis.quit
+  rescue => e
+    p e
+  end
+end
+#+END_SRC

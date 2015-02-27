@@ -1,0 +1,35 @@
+#+TITLE: Borges: A Mesos framework for distributed Org Babel runs
+#+startup: showeverything
+
+# TODO: logo image
+# TODO: borges quote
+
+*** TODO Motivation
+
+Org Babel is good for scheduling workloads locally
+or remotely via SSH, and the Borges scheduler just takes it 
+to the next level by using Mesos to abstract the resources used
+for running the workloads as specified in the Org mode document.
+
+*** TODO Usage
+
+**** Using ~curl~
+
+#+BEGIN_SRC sh 
+curl -X POST -d@jobs.org 127.0.0.1:8888/jobs/
+#+END_SRC
+
+**** Using ~borges.el~
+
+- Open an Org mode document
+- Set the =#+borgesaddress:= in buffer setting in your document.
+- Call ~org-borges-exec~
+- Visit the address with the resulting Org mode document.
+
+*** TODO Installation
+
+Just get the binary for your platform.
+
+*** TODO Hacking
+
+# Etc...
