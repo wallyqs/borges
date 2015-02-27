@@ -1,0 +1,26 @@
+#+TITLE: Required repos
+
+*** Mesos go related
+
+#+name: git-clone-mesos-go
+#+BEGIN_SRC sh :results silent
+mkdir -p src/github.com/mesos/
+git clone https://github.com/mesos/mesos-go.git src/github.com/mesos/mesos-go
+#+END_SRC
+
+#+name: prepare-mesos-go
+#+BEGIN_SRC sh :results silent
+export GOPATH="`pwd`"
+cd src/github.com/mesos/mesos-go
+godep restore
+go build ./...
+#+END_SRC
+
+
+*** Org Go related
+
+#+name: git-clone-org-go
+#+BEGIN_SRC sh
+mkdir -p src/github.com/wallyqs/
+git clone https://github.com/wallyqs/org-go.git src/github.com/wallyqs/org-go
+#+END_SRC
