@@ -12,15 +12,15 @@ The idealists argue that the hexagonal rooms are a necessary form of absolute sp
                     - Jorge Luis Borges, The Library of Babel
 #+END_QUOTE
 
-*** TODO Motivation
+*** Motivation
 
 Org Babel is good for scheduling workloads locally or remotely via SSH,
-and the Borges scheduler is an attempt to taking it to the next level 
-by using Mesos to abstract the resources used for running the workloads,
-as well as making it possible to orchestrate its execution via code block header arguments,
+and the Borges scheduler is an attempt at taking it to the next level 
+by using Mesos to abstract the resources used for running the workloads.
+This also makes it possible to orchestrate its execution via header arguments,
 similarly to how Org Babel does it to enable literate programming.
 
-*** TODO Usage examples
+*** Usage examples
 
 For example, having a ~org-file.org~ document with the following content:
 
@@ -97,10 +97,49 @@ Or check its logs within the Sandbox:
 - Call ~org-borges-exec~
 - Visit the address with the resulting Org mode document.
 
-*** COMMENT Installation
+*** Running it
 
-Just get the binary for your platform.
+Once getting the binary (=go build ...=), it can be started as follows:
+
+#+BEGIN_SRC sh
+borges -f org/examples/borges-config.org -logtostderr=true
+#+END_SRC
+
+#+BEGIN_SRC 
+I0301 20:01:23.158484 02578 borges.go:313] Reading #+setupfile:  org/examples/borges-config.org
+I0301 20:01:23.164691 02578 scheduler.go:232] Initializing mesos scheduler driver
+I0301 20:01:23.165067 02578 scheduler.go:640] Starting the scheduler driver...
+I0301 20:01:23.165752 02578 http_transporter.go:275] http transport listening on 192.168.0.7:50717
+I0301 20:01:23.165873 02578 borges.go:292] API server running at  192.168.0.7:8888
+I0301 20:01:24.166711 02578 scheduler.go:659] Mesos scheduler driver started with PID=scheduler(1)@192.168.0.7:50717
+I0301 20:01:24.168792 02578 scheduler.go:808] Scheduler driver running.  Waiting to be stopped.
+I0301 20:01:24.181682 02578 scheduler.go:272] New master master@192.168.0.7:5050 detected
+I0301 20:01:24.181742 02578 scheduler.go:331] No credentials were provided. Attempting to register scheduler without authentication.
+I0301 20:01:24.187725 02578 scheduler.go:441] Framework registered with ID=20150301-191330-117483712-5050-1515-0001
+I0301 20:01:24.188582 02578 borges.go:87] [ 20150301-191330-117483712-5050-1515-O1403 ] Received Offer with cpus = 4  mem = 2812
+#+END_SRC
+
+Configuration itself is done via a la Org mode 
+via a ~#+setupfile:~ with at least the following:
+
+#+BEGIN_SRC org
+,#+TITLE: Borges Configuration
+
+,#+mesos_master: 192.168.0.7:5050
+,#+borges_bind:  192.168.0.7
+,#+borges_port:  8888
+#+END_SRC
+
+- ~#+mesos_master:~ is the address of a Mesos master
+- ~#+borges_bind:~  is the address that the schedule will be announcing to Mesos
+- ~#+borges_port:~  is the port where we can send HTTP requests with Org mode in the body.
 
 *** COMMENT Hacking
 
-# Etc...
+Fetch the repos, then build and run with the following:
+
+#+BEGIN_SRC sh
+gem install org-converge
+org-run org/repos.org
+org-run org/borges.org
+#+END_SRC
