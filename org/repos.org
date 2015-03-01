@@ -1,4 +1,5 @@
 #+TITLE: Required repos
+#+runmode: sequential
 
 *** Mesos go related
 
@@ -26,10 +27,17 @@ git clone https://github.com/wallyqs/org-go.git src/github.com/wallyqs/org-go
 
 *** Other Dependencies
 
-#+BEGIN_SRC sh :dir ..
+#+name: git-clone-uuid
+#+BEGIN_SRC sh
 mkdir -p src/github.com/satori/
 git clone https://github.com/satori/go.uuid.git src/github.com/satori/go.uuid
 #+END_SRC
 
 #+RESULTS:
 
+*** Borges dir
+
+#+name: borges-dir
+#+BEGIN_SRC sh
+mkdir -p src/github.com/wallyqs/borges/
+#+END_SRC

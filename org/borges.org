@@ -589,6 +589,7 @@ func main() {
 #+name: main
 #+BEGIN_SRC sh 
 export GOPATH="`pwd`"
+go fmt src/github.com/wallyqs/borges/borges.go
 go run src/github.com/wallyqs/borges/borges.go -f /tmp/borges-config.org -logtostderr=true
 sleep 5
 #+END_SRC
