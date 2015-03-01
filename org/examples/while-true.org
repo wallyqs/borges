@@ -1,0 +1,11 @@
+#+title: While true block
+
+Does not get simpler than this:
+
+#+name: run
+#+BEGIN_SRC sh
+while true; do
+  echo "Running..."
+  sleep 1
+done
+#+END_SRC
