@@ -24,7 +24,7 @@ similarly to how Org Babel does it to enable literate programming.
 
 For example, having a ~org-file.org~ document with the following content:
 
-#+BEGIN_SRC org
+#+BEGIN_SRC conf
 ,#+TITLE: Code block that should run forever
 
 ,#+name: run-forever
@@ -128,7 +128,7 @@ I0301 20:01:24.188582 02578 borges.go:87] [ 20150301-191330-117483712-5050-1515-
 Configuration itself is done via a la Org mode 
 via a ~#+setupfile:~ with at least the following:
 
-#+BEGIN_SRC org
+#+BEGIN_SRC conf
 ,#+TITLE: Borges Configuration
 
 ,#+mesos_master: 192.168.0.7:5050
