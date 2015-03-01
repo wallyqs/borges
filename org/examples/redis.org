@@ -10,7 +10,7 @@ redis-server
 #+name: ruby-redis
 #+headers: :cpus 1 :mem 56
 #+BEGIN_SRC ruby
-requre 'redis'
+require 'redis'
 
 loop do
   begin

@@ -1,15 +1,23 @@
-#+TITLE: Borges: A Mesos framework for distributed Org Babel runs
+#+TITLE: Borges: A Mesos framework for Org Babel
 #+startup: showeverything
 
 # TODO: logo image
-# TODO: borges quote
+[[./data/images/Borges-logo.png]]
+
+#+BEGIN_QUOTE
+The universe (which others call the Library) is composed of an indefinite and perhaps infinite number of hexagonal galleries... 
+The idealists argue that the hexagonal rooms are a necessary form of absolute space or, at least, of our intuition of space.
+
+                    - Jorge Luis Borges, The Library of Babel
+#+END_QUOTE
 
 *** TODO Motivation
 
-Org Babel is good for scheduling workloads locally
-or remotely via SSH, and the Borges scheduler just takes it 
-to the next level by using Mesos to abstract the resources used
-for running the workloads as specified in the Org mode document.
+Org Babel is good for scheduling workloads locally or remotely via SSH,
+and the Borges scheduler is an attempt to taking it to the next level 
+by using Mesos to abstract the resources used for running the workloads,
+as well as making it possible to orchestrate its execution via code block header arguments,
+similarly to how Org Babel does it to enable literate programming.
 
 *** TODO Usage examples
 
@@ -31,13 +39,55 @@ done
 We can submit it to the scheduler for execution:
 
 #+BEGIN_SRC sh 
-curl -X POST -d@org-file.org 127.0.0.1:8888/org/
+curl -X POST -d@org-file.org 127.0.0.1:8888/org
 #+END_SRC
 
-# Then check its progress on Mesos:
-# 
-# TODO: Add image
-# 
+Though we can specify much more about how to run it,
+for example by setting ~:dockerize t~, the code block
+will run within the specified Docker image.  Furthermore,
+we can specify the required resources in order to run it
+via the ~:cpu~ and ~:mem~ arguments:
+
+#+BEGIN_SRC sh :results output
+
+curl -X POST 192.168.0.7:8888/org -d '
+
+,#+name: redis-server
+,#+header: :cpu 1 :mem 128 :dockerize t :image redis
+,#+BEGIN_SRC sh
+redis-server
+,#+END_SRC
+
+,#+name: set-something-in-redis
+,#+header: :cpu 1 :mem 128
+,#+BEGIN_SRC sh
+while true; do 
+  echo "SET timestamp `date \"+%s\"`" | nc 127.0.0.1 6379
+  sleep 1
+done
+,#+END_SRC
+
+,#+name: get-something-from-redis
+,#+header: :cpu 1 :mem 128 :dockerize t :image ubuntu
+,#+BEGIN_SRC sh
+while true; do 
+  echo "Current value in Redis:"
+  echo "GET timestamp" | nc 127.0.0.1 6379
+  sleep 1
+done
+,#+END_SRC
+
+' 2>&1
+
+#+END_SRC
+
+We can confirm that the code blocks are running fine in Mesos web UI:
+
+[[./data/images/tasks.png]]
+
+Or check its logs within the Sandbox:
+
+[[./data/images/redis-server.png]]
 
 **** COMMENT Using ~borges.el~
 
