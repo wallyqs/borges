@@ -2,7 +2,7 @@
 #+startup: showeverything
 
 #+BEGIN_CENTER
-[[./data/images/Borges-logo.png]]
+[[./org/images/Borges-logo.png]]
 #+END_CENTER
 
 #+BEGIN_QUOTE
@@ -84,11 +84,11 @@ done
 
 We can confirm that the code blocks are running fine in Mesos web UI:
 
-[[./data/images/tasks.png]]
+[[./org/images/tasks.png]]
 
 Or check its logs within the Sandbox:
 
-[[./data/images/redis-server.png]]
+[[./org/images/redis-server.png]]
 
 **** COMMENT Using ~borges.el~
 
@@ -99,7 +99,13 @@ Or check its logs within the Sandbox:
 
 *** Running it
 
-Once getting the binary (=go build ...=), it can be started as follows:
+Once getting the binary (=go build ...=), or =go get=
+
+#+BEGIN_SRC sh
+go get github.com/wallyqs/borges
+#+END_SRC
+
+Then it can be started as follows:
 
 #+BEGIN_SRC sh
 borges -f org/examples/borges-config.org -logtostderr=true
@@ -133,6 +139,10 @@ via a ~#+setupfile:~ with at least the following:
 - ~#+mesos_master:~ is the address of a Mesos master
 - ~#+borges_bind:~  is the address that the schedule will be announcing to Mesos
 - ~#+borges_port:~  is the port where we can send HTTP requests with Org mode in the body.
+
+*** Contributing/Status
+
+Currently the project is still very experimental, though feedback is very welcome!
 
 *** COMMENT Hacking
 
