@@ -9,6 +9,31 @@
   + Payload is a raw Org mode document
   + =#+include:= should be resolved before sending the payload
 
+- Monitoring output is in plain text
+
+*** Workflow
+
+- =POST /org/= 
+  + Schedules the jobs.
+
+**** COMMENT Ideas
+
+***** At the moment just from =/varz=
+
+How to retrieve the output from the code block?
+For the momment 
+
+Not sure of this idea anymore:
+
+- =GET /org/10=
+  + When visited like ~10.org~,
+    the document will have the results from the job
+    within the same document.
+  + When visited like ~10.html~,
+    the Org mode document will be rendered for the user.
+
+***** Other ideas
+
 - Expect fault tolerance for the job by default,
   but also support tasks that finishes.
   + Use ~:ensures~ option for this
@@ -24,21 +49,14 @@
   + Example: ~:url app-a.apps.tokyo~
     # Note: what about replacing already existing routes?
 
-*** Workflow
-
-- =POST /jobs/= 
-  + Schedules the jobs and returns a job id in response.
-
-- =GET /jobs/10=
-  + When visited like ~10.org~,
-    the document will have the results from the job
-    within the same document.
-  + When visited like ~10.html~,
-    the Org mode document will be rendered for the user.
-*** Components
+*** Objects
 
 - BorgesScheduler
   + Mesos related components
 
 - BorgesHttpServer
   + Has the handlers for submitting the jobs
+
+- BorgesCodeBlocks
+  + Taken from an Org mode document.
+    One code block can have many Mesos tasks (instances for example).
