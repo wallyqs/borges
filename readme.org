@@ -1,8 +1,9 @@
 #+TITLE: Borges: A Mesos framework for Org Babel
 #+startup: showeverything
 
-# TODO: logo image
+#+BEGIN_CENTER
 [[./data/images/Borges-logo.png]]
+#+END_CENTER
 
 #+BEGIN_QUOTE
 The universe (which others call the Library) is composed of an indefinite and perhaps infinite number of hexagonal galleries... 
