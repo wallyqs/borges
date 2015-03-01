@@ -53,7 +53,7 @@ import (
 	"time"
 	"net"
 	"net/http"
-	io "io/ioutil"
+	"io/ioutil"
 
 	"github.com/satori/go.uuid"
 	"github.com/gogo/protobuf/proto"
@@ -69,6 +69,7 @@ import (
 *** DONE Definitions
 
 Set version:
+# Note: an idea would be to set the version number with a macro instead
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 const   BORGES_VERSION = "0.0.1"
@@ -114,7 +115,7 @@ as well as a queue of the tasks that should be dispatched.
 type BorgesScheduler struct {
 	Scheduler  *BorgesScheduler
         CodeBlocks map[*mesos.TaskID]*mesos.TaskInfo
-	Queue      []*mesos.TaskInfo
+	CodeBlocksQueue []*org.OrgSrcBlock
 }
 
 #+END_SRC
@@ -378,8 +379,8 @@ A client will send a request to =POST /org= with the Org mode document
 as part of its payload, and then the scheduler will take the code blocs
 and run them on top of Mesos.
 
-- [ ] Read the payload
-- [ ] Create the mesos tasks
+- [X] Read and parse the body
+- [ ] Create the mesos tasks in case we have detected some
 - [ ] Put then in the scheduler queue for execution
    # Note: It should be a priority queue since we will re-execute the task in case it fails asap in some cases.
 - [ ] As soon as there is a resource offering, they will be dispatched by the scheduler.
@@ -387,8 +388,45 @@ and run them on top of Mesos.
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 func (s *BorgesAPIServer) OrgHandler(w http.ResponseWriter, r *http.Request) {
-  log.Infoln("POST /org")
-  fmt.Fprintf(w, "TODO: POST /org/")
+        log.Infoln("POST /org")
+
+	switch r.Method {
+	case "POST":
+		defer r.Body.Close()
+		contents, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			log.Fatal("Can't listen to the monitor port: %v", err)
+		}
+		orgtext := string(contents)
+
+		blocks := getBlocksFromString(orgtext)
+		for _, block := range blocks {
+		  s.Scheduler.CodeBlocksQueue = append(s.Scheduler.CodeBlocksQueue, block)
+		}
+		fmt.Fprintf(w, "Scheduled %v code blocks for execution", len(blocks))
+	
+	default:
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprintf(w, "Not found: %v /org/", r.Method)
+	}
+
+}
+
+func getBlocksFromString (orgtext string) []*org.OrgSrcBlock {
+  blocks := make([]*org.OrgSrcBlock, 0)
+
+  // Ugh...
+  root := org.Preprocess(orgtext)
+  tokens := org.Tokenize(orgtext, root)
+
+  for _, t := range tokens {
+    switch o := t.(type) {
+    case *org.OrgSrcBlock:
+      blocks = append(blocks, o)
+    }
+  }
+
+  return blocks
 }
 
 #+END_SRC
@@ -465,6 +503,8 @@ func (s *BorgesAPIServer) Start() {
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
+// Borrowed from the mesos-go example at:
+// https://github.com/mesos/mesos-go/blob/master/examples/test_framework.go#L235
 func parseIP(address string) net.IP {
 	addr, err := net.LookupIP(address)
 	if err != nil {
@@ -492,7 +532,7 @@ func main() {
         // Parse Org mode file first and get the code blocks that will be run
 	//
 	log.Infoln("Reading #+setupfile: ", *setupfile)
-	contents, err := io.ReadFile(*setupfile)
+	contents, err := ioutil.ReadFile(*setupfile)
 	if err != nil {
 		fmt.Printf("Problem reading the file: %v \n", err)
 	}
@@ -500,7 +540,10 @@ func main() {
 
 	// Create Scheduler and HTTP API server
 	//
-	borges := &BorgesScheduler{CodeBlocks: make(map[*mesos.TaskID]*mesos.TaskInfo)}
+	borges := &BorgesScheduler{
+	  CodeBlocks: make(map[*mesos.TaskID]*mesos.TaskInfo),
+	  CodeBlocksQueue: make([]*org.OrgSrcBlock, 0),
+	}
 	server := NewAPIServer(config.Settings["BORGES_BIND"] + ":" + config.Settings["BORGES_PORT"])
 	server.Scheduler = borges
 
