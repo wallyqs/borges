@@ -29,18 +29,18 @@ package main
 import (
 	"flag"
 	"fmt"
-	// "strconv"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	log "github.com/golang/glog"
 	mesos "github.com/mesos/mesos-go/mesosproto"
-	"github.com/satori/go.uuid"
-	// util  "github.com/mesos/mesos-go/mesosutil"
+	util "github.com/mesos/mesos-go/mesosutil"
 	sched "github.com/mesos/mesos-go/scheduler"
+	"github.com/satori/go.uuid"
 	org "github.com/wallyqs/org-go"
 )
 
@@ -62,20 +62,70 @@ func init() {
 type BorgesScheduler struct {
 	Scheduler       *BorgesScheduler
 	CodeBlocks      map[*mesos.TaskID]*mesos.TaskInfo
-	CodeBlocksQueue []*org.OrgSrcBlock
+	CodeBlocksQueue []*mesos.TaskInfo
 }
 
-func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offers []*mesos.Offer) {}
+func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offers []*mesos.Offer) {
+
+	for _, offer := range offers {
+		cpuResources := util.FilterResources(offer.Resources, func(res *mesos.Resource) bool {
+			return res.GetName() == "cpus"
+		})
+		cpus := 0.0
+		for _, res := range cpuResources {
+			cpus += res.GetScalar().GetValue()
+		}
+
+		memResources := util.FilterResources(offer.Resources, func(res *mesos.Resource) bool {
+			return res.GetName() == "mem"
+		})
+		mems := 0.0
+		for _, res := range memResources {
+			mems += res.GetScalar().GetValue()
+		}
+
+		log.Infoln("[", offer.Id.GetValue(), "] Received Offer with cpus =", cpus, " mem =", mems)
+
+		remainingCpus := cpus
+		remainingMems := mems
+
+		var tasksToLaunch []*mesos.TaskInfo
+		if remainingCpus < MIN_CPUS_PER_TASK || remainingMems < MIN_MEM_PER_TASK {
+			log.Infoln("[", offer.Id.GetValue(), "] Not enough resources, skipping")
+			// TODO: Decline the offer by launching nothing!
+			driver.DeclineOffer(offer.Id, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
+			continue
+		}
+
+		for _, task := range sched.CodeBlocksQueue {
+			// Check if it is running already or not (has an SlaveID)
+			//
+			if task.SlaveId == nil {
+				log.Infoln("Slave (", offer.SlaveId.GetValue(), ") will be used for task:", task.TaskId)
+				task.SlaveId = offer.SlaveId
+				remainingCpus -= MIN_CPUS_PER_TASK
+				remainingMems -= MIN_MEM_PER_TASK
+				tasksToLaunch = append(tasksToLaunch, task)
+			}
+		}
+
+		if len(tasksToLaunch) > 0 {
+			log.Infoln("[", offer.Id.GetValue(), "] Launching", len(tasksToLaunch), "code blocks with offer.")
+			driver.LaunchTasks([]*mesos.OfferID{offer.Id}, tasksToLaunch, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
+		} else {
+			driver.DeclineOffer(offer.Id, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
+		}
+	}
+
+}
 
 func (sched *BorgesScheduler) StatusUpdate(driver sched.SchedulerDriver, status *mesos.TaskStatus) {}
-
 func (sched *BorgesScheduler) Registered(driver sched.SchedulerDriver, frameworkId *mesos.FrameworkID, masterInfo *mesos.MasterInfo) {
 }
 func (sched *BorgesScheduler) Reregistered(driver sched.SchedulerDriver, masterInfo *mesos.MasterInfo) {
 }
 func (sched *BorgesScheduler) Disconnected(sched.SchedulerDriver)                   {}
 func (sched *BorgesScheduler) OfferRescinded(sched.SchedulerDriver, *mesos.OfferID) {}
-
 func (sched *BorgesScheduler) FrameworkMessage(sched.SchedulerDriver, *mesos.ExecutorID, *mesos.SlaveID, string) {
 }
 func (sched *BorgesScheduler) SlaveLost(sched.SchedulerDriver, *mesos.SlaveID) {}
@@ -117,9 +167,57 @@ func (s *BorgesAPIServer) OrgHandler(w http.ResponseWriter, r *http.Request) {
 		orgtext := string(contents)
 
 		blocks := getBlocksFromString(orgtext)
-		for _, block := range blocks {
-			s.Scheduler.CodeBlocksQueue = append(s.Scheduler.CodeBlocksQueue, block)
+
+		for _, src := range blocks {
+
+			// Create the task and register in dictionary
+			// TODO: Code block can have many instances
+			task := NewCodeBlockTask(src.Name)
+
+			// Command
+			//
+			task.Command = &mesos.CommandInfo{
+				Value: proto.String(src.RawContent),
+			}
+
+			// Resources
+			//
+			taskCpu := MIN_CPUS_PER_TASK
+			if src.Headers[":cpu"] != "" {
+				taskCpu, err = strconv.Atoi(src.Headers[":cpu"])
+				if err != nil {
+					log.Infoln("Could get :cpu value", err)
+				}
+			}
+			taskMem := MIN_MEM_PER_TASK
+			if src.Headers[":mem"] != "" {
+				taskMem, err = strconv.Atoi(src.Headers[":mem"])
+				if err != nil {
+					log.Infoln("Could get :mem value", err)
+				}
+			}
+			task.Resources = []*mesos.Resource{
+				util.NewScalarResource("cpus", float64(taskCpu)),
+				util.NewScalarResource("mem", float64(taskMem)),
+			}
+
+			// Containerization
+			//
+			if src.Headers[":dockerize"] == "t" && src.Headers[":image"] != "" {
+				task.Container = &mesos.ContainerInfo{
+					Type: mesos.ContainerInfo_DOCKER.Enum(),
+					Docker: &mesos.ContainerInfo_DockerInfo{
+						Image: proto.String(src.Headers[":image"]),
+					},
+				}
+			}
+
+			// Register and schedule
+			//
+			s.Scheduler.CodeBlocks[task.TaskId] = task
+			s.Scheduler.CodeBlocksQueue = append(s.Scheduler.CodeBlocksQueue, task)
 		}
+
 		fmt.Fprintf(w, "Scheduled %v code blocks for execution", len(blocks))
 
 	default:
@@ -223,7 +321,7 @@ func main() {
 	//
 	borges := &BorgesScheduler{
 		CodeBlocks:      make(map[*mesos.TaskID]*mesos.TaskInfo),
-		CodeBlocksQueue: make([]*org.OrgSrcBlock, 0),
+		CodeBlocksQueue: make([]*mesos.TaskInfo, 0),
 	}
 	server := NewAPIServer(config.Settings["BORGES_BIND"] + ":" + config.Settings["BORGES_PORT"])
 	server.Scheduler = borges

@@ -7,7 +7,7 @@
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
  /**
-  *	(The MIT License)
+  *     (The MIT License)
   *
   *  Copyright (c) 2015 Waldemar Quevedo. All rights reserved.
   * 
@@ -47,21 +47,21 @@
 package main
 
 import (
-	"fmt"
-	"flag"
-	// "strconv"
-	"time"
-	"net"
-	"net/http"
-	"io/ioutil"
+        "fmt"
+        "flag"
+        "strconv"
+        "time"
+        "net"
+        "net/http"
+        "io/ioutil"
 
-	"github.com/satori/go.uuid"
-	"github.com/gogo/protobuf/proto"
-	log   "github.com/golang/glog"
-	mesos "github.com/mesos/mesos-go/mesosproto"
-	// util  "github.com/mesos/mesos-go/mesosutil"
-	sched "github.com/mesos/mesos-go/scheduler"
-	org   "github.com/wallyqs/org-go"
+        "github.com/satori/go.uuid"
+        "github.com/gogo/protobuf/proto"
+        log   "github.com/golang/glog"
+        mesos "github.com/mesos/mesos-go/mesosproto"
+        util  "github.com/mesos/mesos-go/mesosutil"
+        sched "github.com/mesos/mesos-go/scheduler"
+        org   "github.com/wallyqs/org-go"
 )
 
 #+END_SRC
@@ -93,16 +93,16 @@ as well as setting the configuration file,
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 var (
-	setupfile = flag.String("f", "", "Setup file for Borges in Org mode")
+        setupfile = flag.String("f", "", "Setup file for Borges in Org mode")
 )
 
 func init() {
-	flag.Parse()
+        flag.Parse()
 }
 
 #+END_SRC
 
-*** TODO Types
+*** DONE Types
 
 **** ~BorgesScheduler~ type
 
@@ -113,9 +113,9 @@ as well as a queue of the tasks that should be dispatched.
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 type BorgesScheduler struct {
-	Scheduler  *BorgesScheduler
+        Scheduler  *BorgesScheduler
         CodeBlocks map[*mesos.TaskID]*mesos.TaskInfo
-	CodeBlocksQueue []*org.OrgSrcBlock
+        CodeBlocksQueue []*mesos.TaskInfo
 }
 
 #+END_SRC
@@ -133,157 +133,102 @@ them that way for now.
   The code blocks will compose a mesos task, but we still need of that 
   metadata to be able to handle what to do with the code blocks later on.
 
-***** Scheduler							  :interface:
+***** Scheduler                                                   :interface:
 
 Methods required to implement the =Scheduler= interface from Mesos.
 
 ****** ResourceOffers
 
-******* Scaffold
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
-func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offers []*mesos.Offer) {}
-
-#+END_SRC
-
-******* COMMENT TODO
-
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offers []*mesos.Offer) {
 
-        // We will get many resource offerings,
-	// but sometimes the resources being offered will not be enough
-	// so we will need to implement backing off in case that happens.
-	for _, offer := range offers {
+        for _, offer := range offers {
+                cpuResources := util.FilterResources(offer.Resources, func(res *mesos.Resource) bool {
+                        return res.GetName() == "cpus"
+                })
+                cpus := 0.0
+                for _, res := range cpuResources {
+                        cpus += res.GetScalar().GetValue()
+                }
 
-		cpuResources := util.FilterResources(offer.Resources, func(res *mesos.Resource) bool {
-			return res.GetName() == "cpus"
-		})
-		cpus := 0.0
-		for _, res := range cpuResources {
-			cpus += res.GetScalar().GetValue()
-		}
+                memResources := util.FilterResources(offer.Resources, func(res *mesos.Resource) bool {
+                        return res.GetName() == "mem"
+                })
+                mems := 0.0
+                for _, res := range memResources {
+                        mems += res.GetScalar().GetValue()
+                }
 
-		memResources := util.FilterResources(offer.Resources, func(res *mesos.Resource) bool {
-			return res.GetName() == "mem"
-		})
-		mems := 0.0
-		for _, res := range memResources {
-			mems += res.GetScalar().GetValue()
-		}
+                log.Infoln("[", offer.Id.GetValue(), "] Received Offer with cpus =", cpus, " mem =", mems)
 
-		log.Infoln("[OFFER ] offerId =", offer.Id.GetValue(), ", cpus =", cpus, ", mem =", mems)
-		if cpus < MIN_CPUS_PER_TASK {
-			log.Infoln("[OFFER ] Not enough cpu!")
-			continue;
-		}
+                remainingCpus := cpus
+                remainingMems := mems
 
-		if mems < MIN_MEM_PER_TASK {
-			log.Infoln("[OFFER ] Not enough mem!")
-			continue;
-		}
+                var tasksToLaunch []*mesos.TaskInfo
+                if remainingCpus < MIN_CPUS_PER_TASK || remainingMems < MIN_MEM_PER_TASK {
+                        log.Infoln("[", offer.Id.GetValue(), "] Not enough resources, skipping")
+                        // TODO: Decline the offer by launching nothing!
+                        driver.DeclineOffer(offer.Id, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
+                        continue
+                }
 
-		var tasks []*mesos.TaskInfo
-
-		for _, src := range sched.blocks {
-			sched.tasksLaunched++
-
-			taskId := &mesos.TaskID{
-				Value: proto.String(strconv.Itoa(sched.tasksLaunched)),
-			}
-
-			// Should build the command properly depending of the runtime
-			// Currenty only bash supported, but good enough
-			// since I can just call the runtime from there
-			cmd := src.RawContent
-
-			log.Infoln("[OFFER ] Executing this code block:", src.Name, src.Headers)
-
-			// The code block specifies the resources it should allocate
-			//
-			taskCpus := MIN_CPUS_PER_TASK
-			if src.Headers[":cpus"] != "" {
-			  taskCpus, _ = strconv.Atoi(src.Headers[":cpus"])
-			}
-
-			taskMem := MIN_MEM_PER_TASK
-			if src.Headers[":mem"] != "" {
-			  taskMem, _ = strconv.Atoi(src.Headers[":mem"])
-			}
-
-			task := &mesos.TaskInfo{
-				Name:     proto.String("ob-mesos-" + taskId.GetValue()),
-				TaskId:   taskId,
-				SlaveId:  offer.SlaveId,
-				// Executor: sched.executor,
-				Resources: []*mesos.Resource{
-					util.NewScalarResource("cpus", float64(taskCpus)),
-					util.NewScalarResource("mem", float64(taskMem)),
-				},
-			        Command: &mesos.CommandInfo{
-				 	Value: proto.String(cmd),
-				},
-			}
-
-                        if len(src.Headers[":dockerimage"]) > 0 {
-                                task.Container = &mesos.ContainerInfo{
-                                        Type: mesos.ContainerInfo_DOCKER.Enum(),
-                                        Docker: &mesos.ContainerInfo_DockerInfo{
-                                                Image: proto.String(src.Headers[":dockerimage"]),
-						// TODO:
-                                                // Network: mesos.ContainerInfo_DockerInfo_BRIDGE.Enum(),
-                                                // PortMappings: []*ContainerInfo_DockerInfo_PortMapping{},
-                                        },
-                                }
+                for _, task := range sched.CodeBlocksQueue {
+                        // Check if it is running already or not (has an SlaveID)
+                        // 
+                        if task.SlaveId == nil {
+                                log.Infoln("Slave (", offer.SlaveId.GetValue(), ") will be used for task:", task.TaskId.GetValue())
+                                task.SlaveId = offer.SlaveId
+                                remainingCpus -= MIN_CPUS_PER_TASK
+                                remainingMems -= MIN_MEM_PER_TASK
+                                tasksToLaunch = append(tasksToLaunch, task)
                         }
+                }
 
-			fmt.Printf("[OFFER ] Prepared to launch task:%s with offer %s \n", task.GetName(), offer.Id.GetValue())
+                if len(tasksToLaunch) > 0 {
+                        log.Infoln("[", offer.Id.GetValue(), "] Launching", len(tasksToLaunch), "code blocks with offer.")
+                        driver.LaunchTasks([]*mesos.OfferID{offer.Id}, tasksToLaunch, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
+                } else {
+                        driver.DeclineOffer(offer.Id, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
+                }
+        }
 
-			tasks = append(tasks, task)
-		}
-		log.Infoln("[OFFER ] Launching ", len(tasks), "tasks for offer", offer.Id.GetValue())
-		driver.LaunchTasks([]*mesos.OfferID{offer.Id}, tasks, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
-	}
 }
 
 #+END_SRC
 
 ****** StatusUpdate
 
-******* Scaffold
-
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
-
 func (sched *BorgesScheduler) StatusUpdate(driver sched.SchedulerDriver, status *mesos.TaskStatus) {}
-
 #+END_SRC
 
 ******* COMMENT TODO
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) StatusUpdate(driver sched.SchedulerDriver, status *mesos.TaskStatus) {
-	log.Infoln("[STATUS] task", status.TaskId.GetValue(), " is in state ", status.State.Enum().String())
-	if status.GetState() == mesos.TaskState_TASK_FINISHED {
-		sched.tasksFinished++
-	}
+        log.Infoln("[STATUS] task", status.TaskId.GetValue(), " is in state ", status.State.Enum().String())
+        if status.GetState() == mesos.TaskState_TASK_FINISHED {
+                sched.tasksFinished++
+        }
 
-	if sched.tasksFinished >= len(sched.blocks) {
-		log.Infoln("[STATUS] All code blocks have been ran. Done.")
-		driver.Stop(false)
-	}
+        if sched.tasksFinished >= len(sched.blocks) {
+                log.Infoln("[STATUS] All code blocks have been ran. Done.")
+                driver.Stop(false)
+        }
 
-	if status.GetState() == mesos.TaskState_TASK_LOST ||
-		status.GetState() == mesos.TaskState_TASK_KILLED ||
-		status.GetState() == mesos.TaskState_TASK_FAILED {
-		log.Infoln(
-			"[STATUS] Aborting because task", status.TaskId.GetValue(),
-			"is in unexpected state", status.State.String(),
-			"with message", status.GetMessage(),
-		)
-		log.Infoln("[STATUS] Stopping all tasks.")
-		driver.Abort()
-	}
+        if status.GetState() == mesos.TaskState_TASK_LOST ||
+                status.GetState() == mesos.TaskState_TASK_KILLED ||
+                status.GetState() == mesos.TaskState_TASK_FAILED {
+                log.Infoln(
+                        "[STATUS] Aborting because task", status.TaskId.GetValue(),
+                        "is in unexpected state", status.State.String(),
+                        "with message", status.GetMessage(),
+                )
+                log.Infoln("[STATUS] Stopping all tasks.")
+                driver.Abort()
+        }
 }
 
 #+END_SRC
@@ -310,7 +255,6 @@ func (sched *BorgesScheduler) Disconnected(sched.SchedulerDriver) {}
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) OfferRescinded(sched.SchedulerDriver, *mesos.OfferID) {}
-
 #+END_SRC
 
 ****** TODO FrameworkMessage
@@ -337,7 +281,7 @@ func (sched *BorgesScheduler) ExecutorLost(sched.SchedulerDriver, *mesos.Executo
 func (sched *BorgesScheduler) Error(driver sched.SchedulerDriver, err string) {}
 #+END_SRC
 
-***** NewCodeBlockTask						    :factory:
+***** NewCodeBlockTask                                              :factory:
 
 #+BEGIN_SRC go :results output :tangle src/github.com/wallyqs/borges/borges.go
 
@@ -345,14 +289,14 @@ func (sched *BorgesScheduler) Error(driver sched.SchedulerDriver, err string) {}
 //
 func NewCodeBlockTask(blockname string) *mesos.TaskInfo {
         tuuid := uuid.NewV4()
-	task := &mesos.TaskInfo{
-		Name:    proto.String(blockname + "/" + tuuid.String()),
-	        TaskId:  &mesos.TaskID{
-			Value: proto.String(tuuid.String()),
-		},
-	}
+        task := &mesos.TaskInfo{
+                Name:    proto.String(blockname + "/" + tuuid.String()),
+                TaskId:  &mesos.TaskID{
+                        Value: proto.String(tuuid.String()),
+                },
+        }
 
-	return task
+        return task
 }
 #+END_SRC
 
@@ -373,42 +317,89 @@ type BorgesAPIServer struct {
 
 ***** TODO Resources
 
-****** TODO Org handler
+****** DONE Org handler
 
 A client will send a request to =POST /org= with the Org mode document
 as part of its payload, and then the scheduler will take the code blocs
 and run them on top of Mesos.
 
 - [X] Read and parse the body
-- [ ] Create the mesos tasks in case we have detected some
-- [ ] Put then in the scheduler queue for execution
+- [X] Create the mesos tasks in case we have detected some
+- [X] Put then in the scheduler queue so that it is matched to an offering
    # Note: It should be a priority queue since we will re-execute the task in case it fails asap in some cases.
-- [ ] As soon as there is a resource offering, they will be dispatched by the scheduler.
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 func (s *BorgesAPIServer) OrgHandler(w http.ResponseWriter, r *http.Request) {
         log.Infoln("POST /org")
 
-	switch r.Method {
-	case "POST":
-		defer r.Body.Close()
-		contents, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			log.Fatal("Can't listen to the monitor port: %v", err)
-		}
-		orgtext := string(contents)
+        switch r.Method {
+        case "POST":
+                defer r.Body.Close()
+                contents, err := ioutil.ReadAll(r.Body)
+                if err != nil {
+                        log.Fatal("Can't listen to the monitor port: %v", err)
+                }
+                orgtext := string(contents)
 
-		blocks := getBlocksFromString(orgtext)
-		for _, block := range blocks {
-		  s.Scheduler.CodeBlocksQueue = append(s.Scheduler.CodeBlocksQueue, block)
-		}
-		fmt.Fprintf(w, "Scheduled %v code blocks for execution", len(blocks))
-	
-	default:
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "Not found: %v /org/", r.Method)
-	}
+                blocks := getBlocksFromString(orgtext)
+
+                for _, src := range blocks {
+
+                  // Create the task and register in dictionary
+                  // TODO: Code block can have many instances
+                  task := NewCodeBlockTask(src.Name)
+
+                  // Command
+                  //
+                  task.Command = &mesos.CommandInfo{
+                    Value: proto.String(src.RawContent),
+                  }
+
+                  // Resources
+                  //
+                  taskCpu := MIN_CPUS_PER_TASK
+                  if src.Headers[":cpu"] != "" {
+                    taskCpu, err = strconv.Atoi(src.Headers[":cpu"])
+                    if err != nil {
+                      log.Infoln("Could get :cpu value", err)
+                    }
+                  }
+                  taskMem := MIN_MEM_PER_TASK
+                  if src.Headers[":mem"] != "" {
+                    taskMem, err = strconv.Atoi(src.Headers[":mem"])
+                    if err != nil {
+                      log.Infoln("Could get :mem value", err)
+                    }
+                  }
+                  task.Resources = []*mesos.Resource{
+                    util.NewScalarResource("cpus", float64(taskCpu)),
+                    util.NewScalarResource("mem", float64(taskMem)),
+                  }
+
+                  // Containerization
+                  //
+                  if src.Headers[":dockerize"] == "t" && src.Headers[":image"] != "" {
+                    task.Container = &mesos.ContainerInfo{
+                                       Type: mesos.ContainerInfo_DOCKER.Enum(),
+                                       Docker: &mesos.ContainerInfo_DockerInfo{
+                                       Image: proto.String(src.Headers[":image"]),
+                                       },
+                    }
+                  }
+
+                  // Register and schedule
+                  //
+                  s.Scheduler.CodeBlocks[task.TaskId] = task
+                  s.Scheduler.CodeBlocksQueue = append(s.Scheduler.CodeBlocksQueue, task)
+                }
+
+                fmt.Fprintf(w, "Scheduled %v code blocks for execution", len(blocks))
+        
+        default:
+                w.WriteHeader(http.StatusNotFound)
+                fmt.Fprintf(w, "Not found: %v /org/", r.Method)
+        }
 
 }
 
@@ -453,7 +444,7 @@ func (s *BorgesAPIServer) VarzHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 #+END_SRC
-***** TODO Factory method
+***** =NewAPIServer=                                                :factory:
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
@@ -476,18 +467,18 @@ func NewAPIServer(bind string) *BorgesAPIServer {
   mux.HandleFunc("/varz",     api.VarzHandler)
 
   api.Server = &http.Server{
-		Addr:           bind,
-		Handler:        mux,
-		ReadTimeout:    2 * time.Second,
-		WriteTimeout:   2 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+                Addr:           bind,
+                Handler:        mux,
+                ReadTimeout:    2 * time.Second,
+                WriteTimeout:   2 * time.Second,
+                MaxHeaderBytes: 1 << 20,
   }
 
   return api
 }
 
 #+END_SRC
-***** TODO Start method 						    
+***** DONE Start method                                                     
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
@@ -506,14 +497,14 @@ func (s *BorgesAPIServer) Start() {
 // Borrowed from the mesos-go example at:
 // https://github.com/mesos/mesos-go/blob/master/examples/test_framework.go#L235
 func parseIP(address string) net.IP {
-	addr, err := net.LookupIP(address)
-	if err != nil {
-		log.Infoln(err)
-	}
-	if len(addr) < 1 {
-		fmt.Printf("failed to parse IP from address '%v'", address)
-	}
-	return addr[0]
+        addr, err := net.LookupIP(address)
+        if err != nil {
+                log.Infoln(err)
+        }
+        if len(addr) < 1 {
+                fmt.Printf("failed to parse IP from address '%v'", address)
+        }
+        return addr[0]
 }
 
 #+END_SRC
@@ -530,50 +521,50 @@ func parseIP(address string) net.IP {
 func main() {
 
         // Parse Org mode file first and get the code blocks that will be run
-	//
-	log.Infoln("Reading #+setupfile: ", *setupfile)
-	contents, err := ioutil.ReadFile(*setupfile)
-	if err != nil {
-		fmt.Printf("Problem reading the file: %v \n", err)
-	}
-	config := org.Preprocess(string(contents))
+        //
+        log.Infoln("Reading #+setupfile: ", *setupfile)
+        contents, err := ioutil.ReadFile(*setupfile)
+        if err != nil {
+                fmt.Printf("Problem reading the file: %v \n", err)
+        }
+        config := org.Preprocess(string(contents))
 
-	// Create Scheduler and HTTP API server
-	//
-	borges := &BorgesScheduler{
-	  CodeBlocks: make(map[*mesos.TaskID]*mesos.TaskInfo),
-	  CodeBlocksQueue: make([]*org.OrgSrcBlock, 0),
-	}
-	server := NewAPIServer(config.Settings["BORGES_BIND"] + ":" + config.Settings["BORGES_PORT"])
-	server.Scheduler = borges
+        // Create Scheduler and HTTP API server
+        //
+        borges := &BorgesScheduler{
+          CodeBlocks: make(map[*mesos.TaskID]*mesos.TaskInfo),
+          CodeBlocksQueue: make([]*mesos.TaskInfo, 0),
+        }
+        server := NewAPIServer(config.Settings["BORGES_BIND"] + ":" + config.Settings["BORGES_PORT"])
+        server.Scheduler = borges
 
-	// Configure the Driver
-	//
-	bindingAddress := parseIP(config.Settings["BORGES_BIND"])
-	driverConfig := sched.DriverConfig{
-		Scheduler: borges,
-		Framework: &mesos.FrameworkInfo{
-		  User: proto.String(""), // covered by the mesos-go bindings
-		  Name: proto.String("Borges v" + BORGES_VERSION),
-		},
-		Master: config.Settings["MESOS_MASTER"],
-		BindingAddress: bindingAddress,
-	}
+        // Configure the Driver
+        //
+        bindingAddress := parseIP(config.Settings["BORGES_BIND"])
+        driverConfig := sched.DriverConfig{
+                Scheduler: borges,
+                Framework: &mesos.FrameworkInfo{
+                  User: proto.String(""), // covered by the mesos-go bindings
+                  Name: proto.String("Borges v" + BORGES_VERSION),
+                },
+                Master: config.Settings["MESOS_MASTER"],
+                BindingAddress: bindingAddress,
+        }
 
-	driver, err := sched.NewMesosSchedulerDriver(driverConfig)
-	if err != nil {
-		log.Infoln("Unable to create a SchedulerDriver ", err.Error())
-	}
+        driver, err := sched.NewMesosSchedulerDriver(driverConfig)
+        if err != nil {
+                log.Infoln("Unable to create a SchedulerDriver ", err.Error())
+        }
 
-	// Start HTTP Server
-	//
-	go func() { server.Start() }()
+        // Start HTTP Server
+        //
+        go func() { server.Start() }()
 
-	// Start Mesos Scheduler
-	//
-	if stat, err := driver.Run(); err != nil {
-		fmt.Printf("Framework stopped with status %s and error: %s\n", stat.String(), err.Error())
-	}
+        // Start Mesos Scheduler
+        //
+        if stat, err := driver.Run(); err != nil {
+                fmt.Printf("Framework stopped with status %s and error: %s\n", stat.String(), err.Error())
+        }
 
 }
 
@@ -590,6 +581,6 @@ func main() {
 #+BEGIN_SRC sh 
 export GOPATH="`pwd`"
 go fmt src/github.com/wallyqs/borges/borges.go
-go run src/github.com/wallyqs/borges/borges.go -f /tmp/borges-config.org -logtostderr=true
+go run src/github.com/wallyqs/borges/borges.go -f org/examples/borges-config.org -logtostderr=true
 sleep 5
 #+END_SRC
