@@ -16,7 +16,6 @@ godep restore
 go build ./...
 #+END_SRC
 
-
 *** Org Go related
 
 #+name: git-clone-org-go
