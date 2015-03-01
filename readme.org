@@ -11,25 +11,45 @@ or remotely via SSH, and the Borges scheduler just takes it
 to the next level by using Mesos to abstract the resources used
 for running the workloads as specified in the Org mode document.
 
-*** TODO Usage
+*** TODO Usage examples
 
-**** Using ~curl~
+For example, having a ~org-file.org~ document with the following content:
 
-#+BEGIN_SRC sh 
-curl -X POST -d@jobs.org 127.0.0.1:8888/jobs/
+#+BEGIN_SRC org
+,#+TITLE: Code block that should run forever
+
+,#+name: run-forever
+,#+BEGIN_SRC sh 
+echo "Started running"
+while true; do
+  echo "Still running..."
+  sleep 1
+done
+,#+END_SRC
 #+END_SRC
 
-**** Using ~borges.el~
+We can submit it to the scheduler for execution:
+
+#+BEGIN_SRC sh 
+curl -X POST -d@org-file.org 127.0.0.1:8888/org/
+#+END_SRC
+
+# Then check its progress on Mesos:
+# 
+# TODO: Add image
+# 
+
+**** COMMENT Using ~borges.el~
 
 - Open an Org mode document
 - Set the =#+borgesaddress:= in buffer setting in your document.
 - Call ~org-borges-exec~
 - Visit the address with the resulting Org mode document.
 
-*** TODO Installation
+*** COMMENT Installation
 
 Just get the binary for your platform.
 
-*** TODO Hacking
+*** COMMENT Hacking
 
 # Etc...

@@ -1,9 +1,16 @@
 #+TITLE:	Progress
 #+startup:	showeverything
 
+*** [0/2] 0.0.2
+
+- [ ] Tasks have fault tolerance by default
+  + Implement handling the status updates
+- [ ] Use a priority queue for execution of blocks
+
 *** [0/2] 0.0.1 
 
-- [ ] Design of the REST API
-  An HTTP endpoint which expects Org documents
+- [ ] First pass on the http API
 - [ ] Implement basic task queue
-- [ ] Should run blocks sequentially in Mesos
+- [ ] Should run blocks sequentially in Mesos 
+  + Dispatched on the first resource offering, 
+   but blocks can stop running at any time.
