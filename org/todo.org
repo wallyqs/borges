@@ -1,16 +1,22 @@
 #+TITLE:	Progress
 #+startup:	showeverything
 
-*** [0/2] 0.0.2
+*** [0/6] 0.0.2
 
-- [ ] Tasks have fault tolerance by default
-  + Implement handling the status updates
+- [ ] Handle status updates
+  + Tasks have fault tolerance by default
 - [ ] Use a priority queue for execution of blocks
+- [ ] Handle code blocks with many instances
+- [ ] Dependency graph on the code blocks (~:requires~ and ~:ensures~)
+- [ ] Emacs mode for dispatching the current buffer code blocks
+- [ ] Support code blocks that are not ~#+begin_src sh~ type
 
-*** [0/2] 0.0.1 
+*** [5/5] 0.0.1 
 
-- [ ] First pass on the http API
-- [ ] Implement basic task queue
-- [ ] Should run blocks sequentially in Mesos 
+- [X] First pass on the http API
+- [X] Implement basic task queue
+- [X] Support Dockerized code blocs
+- [X] Support basic code blocks
+- [X] Should run blocks in a single Mesos slave
   + Dispatched on the first resource offering, 
-   but blocks can stop running at any time.
+    and blocks can stop running at any time.
