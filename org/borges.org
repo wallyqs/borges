@@ -5,7 +5,7 @@
 ** Source
 *** DONE License
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
  /*
  ,*	(The MIT License)
  ,*
@@ -42,7 +42,7 @@
 - Logging libraries
 - =fmt= to print the responses from the http server
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 package main
 
 import (
@@ -69,13 +69,13 @@ import (
 
 Set version:
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 const   BORGES_VERSION = "0.0.1"
 #+END_SRC
 
 Default minimum resources for a block:
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 const (
         MIN_CPUS_PER_TASK  = 1
@@ -88,7 +88,7 @@ Flags are used to control the level of logging
 as well as setting the configuration file,
 (which also has to be written in Org mode..)
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 var (
 	setupfile = flag.String("f", "", "Setup file for Borges in Org mode")
@@ -108,7 +108,7 @@ Type which implements the ~mesos.Scheduler~ interface.
 It also contains a dictionary of the current tasks,
 as well as a queue of the tasks that should be dispatched.
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 type BorgesScheduler struct {
 	Scheduler  *BorgesScheduler
@@ -139,7 +139,7 @@ Methods required to implement the =Scheduler= interface from Mesos.
 
 ******* Scaffold
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offers []*mesos.Offer) {}
 
@@ -147,7 +147,7 @@ func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offer
 
 ******* COMMENT TODO
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offers []*mesos.Offer) {
 
         // We will get many resource offerings,
@@ -251,7 +251,7 @@ func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offer
 
 ******* Scaffold
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 func (sched *BorgesScheduler) StatusUpdate(driver sched.SchedulerDriver, status *mesos.TaskStatus) {}
 
@@ -259,7 +259,7 @@ func (sched *BorgesScheduler) StatusUpdate(driver sched.SchedulerDriver, status 
 
 ******* COMMENT TODO
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) StatusUpdate(driver sched.SchedulerDriver, status *mesos.TaskStatus) {
 	log.Infoln("[STATUS] task", status.TaskId.GetValue(), " is in state ", status.State.Enum().String())
 	if status.GetState() == mesos.TaskState_TASK_FINISHED {
@@ -288,56 +288,56 @@ func (sched *BorgesScheduler) StatusUpdate(driver sched.SchedulerDriver, status 
 
 ****** TODO Registered
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) Registered(driver sched.SchedulerDriver, frameworkId *mesos.FrameworkID, masterInfo *mesos.MasterInfo) {}
 #+END_SRC
 
 ****** TODO Reregistered
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) Reregistered(driver sched.SchedulerDriver, masterInfo *mesos.MasterInfo) {}
 #+END_SRC
 
 ****** TODO Disconnected
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) Disconnected(sched.SchedulerDriver) {}
 #+END_SRC
 
 ****** TODO OfferRescinded
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) OfferRescinded(sched.SchedulerDriver, *mesos.OfferID) {}
 
 #+END_SRC
 
 ****** TODO FrameworkMessage
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) FrameworkMessage(sched.SchedulerDriver, *mesos.ExecutorID, *mesos.SlaveID, string) {}
 #+END_SRC
 
 ****** TODO SlaveLost
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) SlaveLost(sched.SchedulerDriver, *mesos.SlaveID) {}
 #+END_SRC
 
 ****** TODO ExecutorLost
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) ExecutorLost(sched.SchedulerDriver, *mesos.ExecutorID, *mesos.SlaveID, int) {}
 #+END_SRC
 
 ****** TODO Error
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 func (sched *BorgesScheduler) Error(driver sched.SchedulerDriver, err string) {}
 #+END_SRC
 
 ***** NewCodeBlockTask						    :factory:
 
-#+BEGIN_SRC go :results output :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :results output :tangle src/github.com/wallyqs/borges/borges.go
 
 // Takes a blockname and returns a Mesos task with an uuid
 //
@@ -358,7 +358,7 @@ func NewCodeBlockTask(blockname string) *mesos.TaskInfo {
 
 Handles requests and dispatches Mesos tasks to run the code blocks.
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 type BorgesAPIServer struct {
   Scheduler *BorgesScheduler
@@ -383,7 +383,7 @@ and run them on top of Mesos.
    # Note: It should be a priority queue since we will re-execute the task in case it fails asap in some cases.
 - [ ] As soon as there is a resource offering, they will be dispatched by the scheduler.
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 func (s *BorgesAPIServer) OrgHandler(w http.ResponseWriter, r *http.Request) {
   log.Infoln("POST /org")
@@ -396,7 +396,7 @@ func (s *BorgesAPIServer) OrgHandler(w http.ResponseWriter, r *http.Request) {
 
 Add handlers to serve information about the scheduler, current version and health.
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 func (s *BorgesAPIServer) RootHandler(w http.ResponseWriter, r *http.Request) {
   log.Infoln("GET /")
@@ -416,7 +416,7 @@ func (s *BorgesAPIServer) VarzHandler(w http.ResponseWriter, r *http.Request) {
 #+END_SRC
 ***** TODO Factory method
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 func NewAPIServer(bind string) *BorgesAPIServer {
 
@@ -450,7 +450,7 @@ func NewAPIServer(bind string) *BorgesAPIServer {
 #+END_SRC
 ***** TODO Start method 						    
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 func (s *BorgesAPIServer) Start() {
   log.Infoln("API server running at ", s.Bind)
@@ -462,7 +462,7 @@ func (s *BorgesAPIServer) Start() {
 *** DONE Util functions
 **** parseIP
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 func parseIP(address string) net.IP {
 	addr, err := net.LookupIP(address)
@@ -484,7 +484,7 @@ func parseIP(address string) net.IP {
 3. Start the Borges HTTP API server loop
 4. Start the scheduler loop
 
-#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges.go
 
 func main() {
 
@@ -545,6 +545,6 @@ func main() {
 #+name: main
 #+BEGIN_SRC sh 
 export GOPATH="`pwd`"
-go run src/github.com/wallyqs/borges/borges_scheduler.go -f /tmp/borges-config.org -logtostderr=true
+go run src/github.com/wallyqs/borges/borges.go -f /tmp/borges-config.org -logtostderr=true
 sleep 5
 #+END_SRC
