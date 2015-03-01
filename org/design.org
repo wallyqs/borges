@@ -35,3 +35,10 @@
     within the same document.
   + When visited like ~10.html~,
     the Org mode document will be rendered for the user.
+*** Components
+
+- BorgesScheduler
+  + Mesos related components
+
+- BorgesHttpServer
+  + Has the handlers for submitting the jobs

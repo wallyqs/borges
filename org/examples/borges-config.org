@@ -1,0 +1,7 @@
+#+TITLE: Borges Configuration
+
+#+mesos_master: 192.168.0.7:5050
+#+borges_bind:  192.168.0.7
+#+borges_port:  8888
+
+# TODO: What else goes in here? local blocks for monitoring itself?

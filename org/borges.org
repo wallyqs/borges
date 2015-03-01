@@ -3,28 +3,44 @@
 #+options: todo:t
 
 ** Source
-*** COMMENT License
+*** DONE License
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
-/**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+ /*
+ ,*	(The MIT License)
+ ,*
+ ,*  Copyright (c) 2014 Waldemar Quevedo. All rights reserved.
+ ,* 
+ ,* Permission is hereby granted, free of charge, to any person
+ ,*  obtaining a copy of this software and associated documentation
+ ,*  files (the "Software"), to deal in the Software without
+ ,*  restriction, including without limitation the rights to use, copy,
+ ,*  modify, merge, publish, distribute, sublicense, and/or sell copies
+ ,*  of the Software, and to permit persons to whom the Software is
+ ,*  furnished to do so, subject to the following conditions:
+ ,* 
+ ,* The above copyright notice and this permission notice shall be
+ ,* included in all copies or substantial portions of the Software.
+ ,* 
+ ,* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ ,* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ ,* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ ,* NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ ,* BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ ,* ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ ,* CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ ,* SOFTWARE.
+ */ 
 #+END_SRC
-*** Imports
+
+*** DONE Imports
+
+- Use the Mesos Go bindings
+- Import the /experimental/ Org mode parser for Go
+- Library for handling Protocol Buffers types
+- Networking packages for the http server
+- Logging libraries
+- =fmt= to print the responses from the http server
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
 package main
@@ -32,55 +48,104 @@ package main
 import (
 	"fmt"
 	"flag"
+	// "strconv"
+	"time"
 	"net"
-	"strconv"
+	"net/http"
 	io "io/ioutil"
 
+	"github.com/satori/go.uuid"
 	"github.com/gogo/protobuf/proto"
+	log   "github.com/golang/glog"
 	mesos "github.com/mesos/mesos-go/mesosproto"
-	util  "github.com/mesos/mesos-go/mesosutil"
+	// util  "github.com/mesos/mesos-go/mesosutil"
 	sched "github.com/mesos/mesos-go/scheduler"
 	org   "github.com/wallyqs/org-go"
 )
+
 #+END_SRC
 
-*** Definitions
+*** DONE Definitions
 
-These values will be defined during the =init= step by parsing the flags
-and later on used in =main=.
+Set version:
+
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+const   BORGES_VERSION = "0.0.1"
+#+END_SRC
+
+Default minimum resources for a block:
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
 
 const (
-	MIN_CPUS_PER_TASK       = 1
-	MIN_MEM_PER_TASK        = 128
-)
-
-var (
-	orgFile         = flag.String("f", "", "Org mode file to run")
+        MIN_CPUS_PER_TASK  = 1
+        MIN_MEM_PER_TASK   = 56
 )
 
 #+END_SRC
 
-*** Types
-
-**** BorgesScheduler
-
-***** Type
+Flags are used to control the level of logging
+as well as setting the configuration file,
+(which also has to be written in Org mode..)
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
 
-type BorgesScheduler struct {
-	tasksLaunched int
-	tasksFinished int
-	blocks        []*org.OrgSrcBlock
+var (
+	setupfile = flag.String("f", "", "Setup file for Borges in Org mode")
+)
+
+func init() {
+	flag.Parse()
 }
 
 #+END_SRC
 
-***** Functions
+*** TODO Types
+
+**** ~BorgesScheduler~ type
+
+Type which implements the ~mesos.Scheduler~ interface.
+It also contains a dictionary of the current tasks,
+as well as a queue of the tasks that should be dispatched.
+
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+
+type BorgesScheduler struct {
+	Scheduler  *BorgesScheduler
+        CodeBlocks map[*mesos.TaskID]*mesos.TaskInfo
+	Queue      []*mesos.TaskInfo
+}
+
+#+END_SRC
+
+#+BEGIN_QUOTE
+Note: Still not sure whether to handle /blocks/ as Jobs or Tasks instead...
+Since we are in the domain of running Org Babel code blocks I decided to call
+them that way for now.
+#+END_QUOTE
+
+***** COMMENT TODO [0/2] 
+
+- [ ] Queue should be a priority queue
+- [ ] It should be handlding ~CodeBlocks~, not mesos directly mesos tasks.
+  The code blocks will compose a mesos task, but we still need of that 
+  metadata to be able to handle what to do with the code blocks later on.
+
+***** Scheduler							  :interface:
+
+Methods required to implement the =Scheduler= interface from Mesos.
 
 ****** ResourceOffers
+
+******* Scaffold
+
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+
+func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offers []*mesos.Offer) {}
+
+#+END_SRC
+
+******* COMMENT TODO
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
 func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offers []*mesos.Offer) {
@@ -106,14 +171,14 @@ func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offer
 			mems += res.GetScalar().GetValue()
 		}
 
-		fmt.Println("[OFFER ] offerId =", offer.Id.GetValue(), ", cpus =", cpus, ", mem =", mems)
+		log.Infoln("[OFFER ] offerId =", offer.Id.GetValue(), ", cpus =", cpus, ", mem =", mems)
 		if cpus < MIN_CPUS_PER_TASK {
-			fmt.Println("[OFFER ] Not enough cpu!")
+			log.Infoln("[OFFER ] Not enough cpu!")
 			continue;
 		}
 
 		if mems < MIN_MEM_PER_TASK {
-			fmt.Println("[OFFER ] Not enough mem!")
+			log.Infoln("[OFFER ] Not enough mem!")
 			continue;
 		}
 
@@ -131,7 +196,7 @@ func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offer
 			// since I can just call the runtime from there
 			cmd := src.RawContent
 
-			fmt.Println("[OFFER ] Executing this code block:", src.Name, src.Headers)
+			log.Infoln("[OFFER ] Executing this code block:", src.Name, src.Headers)
 
 			// The code block specifies the resources it should allocate
 			//
@@ -175,7 +240,7 @@ func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offer
 
 			tasks = append(tasks, task)
 		}
-		fmt.Println("[OFFER ] Launching ", len(tasks), "tasks for offer", offer.Id.GetValue())
+		log.Infoln("[OFFER ] Launching ", len(tasks), "tasks for offer", offer.Id.GetValue())
 		driver.LaunchTasks([]*mesos.OfferID{offer.Id}, tasks, &mesos.Filters{RefuseSeconds: proto.Float64(1)})
 	}
 }
@@ -184,27 +249,37 @@ func (sched *BorgesScheduler) ResourceOffers(driver sched.SchedulerDriver, offer
 
 ****** StatusUpdate
 
+******* Scaffold
+
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+
+func (sched *BorgesScheduler) StatusUpdate(driver sched.SchedulerDriver, status *mesos.TaskStatus) {}
+
+#+END_SRC
+
+******* COMMENT TODO
+
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
 func (sched *BorgesScheduler) StatusUpdate(driver sched.SchedulerDriver, status *mesos.TaskStatus) {
-	fmt.Println("[STATUS] task", status.TaskId.GetValue(), " is in state ", status.State.Enum().String())
+	log.Infoln("[STATUS] task", status.TaskId.GetValue(), " is in state ", status.State.Enum().String())
 	if status.GetState() == mesos.TaskState_TASK_FINISHED {
 		sched.tasksFinished++
 	}
 
 	if sched.tasksFinished >= len(sched.blocks) {
-		fmt.Println("[STATUS] All code blocks have been ran. Done.")
+		log.Infoln("[STATUS] All code blocks have been ran. Done.")
 		driver.Stop(false)
 	}
 
 	if status.GetState() == mesos.TaskState_TASK_LOST ||
 		status.GetState() == mesos.TaskState_TASK_KILLED ||
 		status.GetState() == mesos.TaskState_TASK_FAILED {
-		fmt.Println(
+		log.Infoln(
 			"[STATUS] Aborting because task", status.TaskId.GetValue(),
 			"is in unexpected state", status.State.String(),
 			"with message", status.GetMessage(),
 		)
-		fmt.Println("[STATUS] Stopping all tasks.")
+		log.Infoln("[STATUS] Stopping all tasks.")
 		driver.Abort()
 	}
 }
@@ -260,19 +335,131 @@ func (sched *BorgesScheduler) ExecutorLost(sched.SchedulerDriver, *mesos.Executo
 func (sched *BorgesScheduler) Error(driver sched.SchedulerDriver, err string) {}
 #+END_SRC
 
-*** Functions
+***** NewCodeBlockTask						    :factory:
 
-**** init
+#+BEGIN_SRC go :results output :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+
+// Takes a blockname and returns a Mesos task with an uuid
+//
+func NewCodeBlockTask(blockname string) *mesos.TaskInfo {
+        tuuid := uuid.NewV4()
+	task := &mesos.TaskInfo{
+		Name:    proto.String(blockname + "/" + tuuid.String()),
+	        TaskId:  &mesos.TaskID{
+			Value: proto.String(tuuid.String()),
+		},
+	}
+
+	return task
+}
+#+END_SRC
+
+**** ~BorgesAPIServer~ type
+
+Handles requests and dispatches Mesos tasks to run the code blocks.
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
 
-func init() {
-	flag.Parse()
-	fmt.Println("Initializing the Org Babel Scheduler...")
+type BorgesAPIServer struct {
+  Scheduler *BorgesScheduler
+  Server    *http.Server
+  Bind      string
+  Listener  net.Listener
 }
 
 #+END_SRC
 
+***** TODO Resources
+
+****** TODO Org handler
+
+A client will send a request to =POST /org= with the Org mode document
+as part of its payload, and then the scheduler will take the code blocs
+and run them on top of Mesos.
+
+- [ ] Read the payload
+- [ ] Create the mesos tasks
+- [ ] Put then in the scheduler queue for execution
+   # Note: It should be a priority queue since we will re-execute the task in case it fails asap in some cases.
+- [ ] As soon as there is a resource offering, they will be dispatched by the scheduler.
+
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+
+func (s *BorgesAPIServer) OrgHandler(w http.ResponseWriter, r *http.Request) {
+  log.Infoln("POST /org")
+  fmt.Fprintf(w, "TODO: POST /org/")
+}
+
+#+END_SRC
+
+****** TODO Monitoring handlers
+
+Add handlers to serve information about the scheduler, current version and health.
+
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+
+func (s *BorgesAPIServer) RootHandler(w http.ResponseWriter, r *http.Request) {
+  log.Infoln("GET /")
+  fmt.Fprintf(w, "Borges Scheduler v%s", BORGES_VERSION)
+}
+
+func (s *BorgesAPIServer) HealthzHandler(w http.ResponseWriter, r *http.Request) {
+  log.Infoln("GET /healthz")
+  fmt.Fprintf(w, "OK\n")
+}
+
+func (s *BorgesAPIServer) VarzHandler(w http.ResponseWriter, r *http.Request) {
+  log.Infoln("GET /varz")
+  fmt.Fprintf(w, "TODO: GET /varz")
+}
+
+#+END_SRC
+***** TODO Factory method
+
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+
+func NewAPIServer(bind string) *BorgesAPIServer {
+
+  l, err := net.Listen("tcp", bind)
+  if err != nil {
+    log.Fatal("Can't listen to the monitor port: %v", err)
+  }
+
+  api := &BorgesAPIServer{
+                       Bind: bind, 
+                       Listener: l,
+            }
+
+  mux := http.NewServeMux()
+  mux.HandleFunc("/",         api.RootHandler)
+  mux.HandleFunc("/org",      api.OrgHandler)
+  mux.HandleFunc("/healthz",  api.HealthzHandler)
+  mux.HandleFunc("/varz",     api.VarzHandler)
+
+  api.Server = &http.Server{
+		Addr:           bind,
+		Handler:        mux,
+		ReadTimeout:    2 * time.Second,
+		WriteTimeout:   2 * time.Second,
+		MaxHeaderBytes: 1 << 20,
+  }
+
+  return api
+}
+
+#+END_SRC
+***** TODO Start method 						    
+
+#+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
+
+func (s *BorgesAPIServer) Start() {
+  log.Infoln("API server running at ", s.Bind)
+  s.Server.Serve(s.Listener) 
+}
+
+#+END_SRC
+
+*** DONE Util functions
 **** parseIP
 
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
@@ -280,7 +467,7 @@ func init() {
 func parseIP(address string) net.IP {
 	addr, err := net.LookupIP(address)
 	if err != nil {
-		fmt.Println(err)
+		log.Infoln(err)
 	}
 	if len(addr) < 1 {
 		fmt.Printf("failed to parse IP from address '%v'", address)
@@ -292,56 +479,54 @@ func parseIP(address string) net.IP {
 
 *** DONE Main
 
+1. Read the configuration
+2. Configure the scheduler driver for mesos
+3. Start the Borges HTTP API server loop
+4. Start the scheduler loop
+
 #+BEGIN_SRC go :tangle src/github.com/wallyqs/borges/borges_scheduler.go
 
 func main() {
 
         // Parse Org mode file first and get the code blocks that will be run
 	//
-	fmt.Println("Reading Org mode file: ", *orgFile)
-	contents, err := io.ReadFile(*orgFile)
+	log.Infoln("Reading #+setupfile: ", *setupfile)
+	contents, err := io.ReadFile(*setupfile)
 	if err != nil {
 		fmt.Printf("Problem reading the file: %v \n", err)
 	}
+	config := org.Preprocess(string(contents))
 
-	root   := org.Preprocess(string(contents))
-	tokens := org.Tokenize(string(contents), root)
-
-	blocks := make([]*org.OrgSrcBlock, 0)
-	for _, t := range tokens {
-		switch o := t.(type) {
-		case *org.OrgSrcBlock:
-			blocks = append(blocks, o)
-		}
-	}
-
-	// The Mesos part
+	// Create Scheduler and HTTP API server
 	//
-	fwinfo := &mesos.FrameworkInfo{
-		User: proto.String(""), // covered by the mesos-go bindings
-		Name: proto.String("Org Babel Scheduler"),
-	}
+	borges := &BorgesScheduler{CodeBlocks: make(map[*mesos.TaskID]*mesos.TaskInfo)}
+	server := NewAPIServer(config.Settings["BORGES_BIND"] + ":" + config.Settings["BORGES_PORT"])
+	server.Scheduler = borges
 
-	bindingAddress := parseIP(root.Settings["ADDRESS"])
-
-	// Here we would pass the code blocks list
+	// Configure the Driver
 	//
-	config := sched.DriverConfig{
-		Scheduler:      &BorgesScheduler{
-		  tasksLaunched: 0,
-		  tasksFinished: 0,
-		  blocks: blocks,
+	bindingAddress := parseIP(config.Settings["BORGES_BIND"])
+	driverConfig := sched.DriverConfig{
+		Scheduler: borges,
+		Framework: &mesos.FrameworkInfo{
+		  User: proto.String(""), // covered by the mesos-go bindings
+		  Name: proto.String("Borges v" + BORGES_VERSION),
 		},
-		Framework:      fwinfo,
-		Master:         root.Settings["MASTER"],
+		Master: config.Settings["MESOS_MASTER"],
 		BindingAddress: bindingAddress,
 	}
-	driver, err := sched.NewMesosSchedulerDriver(config)
 
+	driver, err := sched.NewMesosSchedulerDriver(driverConfig)
 	if err != nil {
-		fmt.Println("Unable to create a SchedulerDriver ", err.Error())
+		log.Infoln("Unable to create a SchedulerDriver ", err.Error())
 	}
 
+	// Start HTTP Server
+	//
+	go func() { server.Start() }()
+
+	// Start Mesos Scheduler
+	//
 	if stat, err := driver.Run(); err != nil {
 		fmt.Printf("Framework stopped with status %s and error: %s\n", stat.String(), err.Error())
 	}
@@ -350,4 +535,16 @@ func main() {
 
 #+END_SRC
 
+**** COMMENT TODO [0/1] 
 
+- [ ] Also needed to be able to read the configurtion via an environment variable
+  so that it can be configured via =/etc/default/=
+
+** Run
+
+#+name: main
+#+BEGIN_SRC sh 
+export GOPATH="`pwd`"
+go run src/github.com/wallyqs/borges/borges_scheduler.go -f /tmp/borges-config.org -logtostderr=true
+sleep 5
+#+END_SRC

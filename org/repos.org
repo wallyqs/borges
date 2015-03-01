@@ -24,3 +24,13 @@ go build ./...
 mkdir -p src/github.com/wallyqs/
 git clone https://github.com/wallyqs/org-go.git src/github.com/wallyqs/org-go
 #+END_SRC
+
+*** Other Dependencies
+
+#+BEGIN_SRC sh :dir ..
+mkdir -p src/github.com/satori/
+git clone https://github.com/satori/go.uuid.git src/github.com/satori/go.uuid
+#+END_SRC
+
+#+RESULTS:
+

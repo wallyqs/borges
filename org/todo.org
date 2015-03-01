@@ -5,4 +5,5 @@
 
 - [ ] Design of the REST API
   An HTTP endpoint which expects Org documents
-- [ ] Implement task queue
+- [ ] Implement basic task queue
+- [ ] Should run blocks sequentially in Mesos
