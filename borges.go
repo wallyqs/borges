@@ -51,9 +51,7 @@ const (
 	MIN_MEM_PER_TASK  = 56
 )
 
-var (
-	setupfile = flag.String("f", "", "Setup file for Borges in Org mode")
-)
+var setupfile = flag.String("f", "", "Setup file for Borges Scheduler in Org mode")
 
 func init() {
 	flag.Parse()
@@ -61,6 +59,7 @@ func init() {
 
 type BorgesScheduler struct {
 	Scheduler       *BorgesScheduler
+	Executor        *mesos.ExecutorInfo
 	CodeBlocks      map[*mesos.TaskID]*mesos.TaskInfo
 	CodeBlocksQueue []*mesos.TaskInfo
 }
@@ -126,7 +125,8 @@ func (sched *BorgesScheduler) Reregistered(driver sched.SchedulerDriver, masterI
 }
 func (sched *BorgesScheduler) Disconnected(sched.SchedulerDriver)                   {}
 func (sched *BorgesScheduler) OfferRescinded(sched.SchedulerDriver, *mesos.OfferID) {}
-func (sched *BorgesScheduler) FrameworkMessage(sched.SchedulerDriver, *mesos.ExecutorID, *mesos.SlaveID, string) {
+func (sched *BorgesScheduler) FrameworkMessage(driver sched.SchedulerDriver, executorId *mesos.ExecutorID, slaveId *mesos.SlaveID, message string) {
+	log.Infoln("From the hexecutor: ", message);
 }
 func (sched *BorgesScheduler) SlaveLost(sched.SchedulerDriver, *mesos.SlaveID) {}
 func (sched *BorgesScheduler) ExecutorLost(sched.SchedulerDriver, *mesos.ExecutorID, *mesos.SlaveID, int) {
@@ -176,9 +176,12 @@ func (s *BorgesAPIServer) OrgHandler(w http.ResponseWriter, r *http.Request) {
 
 			// Command
 			//
-			task.Command = &mesos.CommandInfo{
-				Value: proto.String(src.RawContent),
-			}
+			// task.Command = &mesos.CommandInfo{
+			// Value: proto.String(src.RawContent),
+			// }
+
+			task.Executor =  s.Scheduler.Executor
+			log.Infoln("Using Executor: ", task.Executor)
 
 			// Resources
 			//
@@ -317,9 +320,20 @@ func main() {
 	}
 	config := org.Preprocess(string(contents))
 
+	log.Infoln(config.Settings)
+	log.Infoln("Executor command: ", config.Settings["EXECUTOR_CMD"])
+
 	// Create Scheduler and HTTP API server
 	//
 	borges := &BorgesScheduler{
+	        Executor: &mesos.ExecutorInfo{
+			ExecutorId: util.NewExecutorID("default"),
+			Name:       proto.String("hexecutor"),
+			Source:     proto.String("hexecutor"),
+		        Command: &mesos.CommandInfo{
+				Value: proto.String(config.Settings["EXECUTOR_CMD"]),
+			},
+		},
 		CodeBlocks:      make(map[*mesos.TaskID]*mesos.TaskInfo),
 		CodeBlocksQueue: make([]*mesos.TaskInfo, 0),
 	}
